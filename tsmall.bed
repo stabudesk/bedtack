@@ -1,0 +1,15 @@
+chrI	0	62	TEL01L_telomeric_repeat	.	-	SGD	telomeric_repeat	.	ID=TEL01L_telomeric_repeat;Name=TEL01L_telomeric_repeat;dbxref=SGD:S000028862
+chrI	62	336	TEL01L_X_element_combinatorial_repeat	.	-	SGD	X_element_combinatorial_repeat	.	ID=TEL01L_X_element_combinatorial_repeat;Name=TEL01L_X_element_combinatorial_repeat;dbxref=SGD:S000028862
+chrI	336	801	TEL01L_X_element	.	-	SGD	X_element	.	ID=TEL01L_X_element;Name=TEL01L_X_element;dbxref=SGD:S000028862
+chrI	229410	229871	TEL01R_X_element	.	+	SGD	X_element	.	ID=TEL01R_X_element;Name=TEL01R_X_element;dbxref=SGD:S000028937
+chrI	230120	230218	TEL01R_telomeric_repeat	.	+	SGD	telomeric_repeat	.	ID=TEL01R_telomeric_repeat;Name=TEL01R_telomeric_repeat;dbxref=SGD:S000028937
+chrII	0	5848	TEL02L_Y_prime_element	.	-	SGD	Y_prime_element	.	ID=TEL02L_Y_prime_element;Name=TEL02L_Y_prime_element;dbxref=SGD:S000028867
+chrII	5848	6138	TEL02L_X_element_combinatorial_repeat	.	-	SGD	X_element_combinatorial_repeat	.	ID=TEL02L_X_element_combinatorial_repeat;Name=TEL02L_X_element_combinatorial_repeat;dbxref=SGD:S000028867
+chrII	6138	6608	TEL02L_X_element	.	-	SGD	X_element	.	ID=TEL02L_X_element;Name=TEL02L_X_element;dbxref=SGD:S000028867
+chrII	812378	812848	TEL02R_X_element	.	+	SGD	X_element	.	ID=TEL02R_X_element;Name=TEL02R_X_element;dbxref=SGD:S000028940
+chrII	812848	813137	TEL02R_X_element_combinatorial_repeat	.	+	SGD	X_element_combinatorial_repeat	.	ID=TEL02R_X_element_combinatorial_repeat;Name=TEL02R_X_element_combinatorial_repeat;dbxref=SGD:S000028940
+chrII	813137	813184	TEL02R_telomeric_repeat	.	+	SGD	telomeric_repeat	.	ID=TEL02R_telomeric_repeat;Name=TEL02R_telomeric_repeat;dbxref=SGD:S000028940
+chrIII	0	360	TEL03L_telomeric_repeat	.	-	SGD	telomeric_repeat	.	ID=TEL03L_telomeric_repeat;Name=TEL03L_telomeric_repeat;dbxref=SGD:S000028871
+chrIII	360	639	TEL03L_X_element_combinatorial_repeat	.	-	SGD	X_element_combinatorial_repeat	.	ID=TEL03L_X_element_combinatorial_repeat;Name=TEL03L_X_element_combinatorial_repeat;dbxref=SGD:S000028871
+chrIII	639	1098	TEL03L_X_element	.	-	SGD	X_element	.	ID=TEL03L_X_element;Name=TEL03L_X_element;dbxref=SGD:S000028871
+chrIII	315782	316239	TEL03R_X_element	.	+	SGD	X_element	.	ID=TEL03R_X_element;Name=TEL03R_X_element;dbxref=SGD:S000028944
