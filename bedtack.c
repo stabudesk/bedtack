@@ -1,5 +1,20 @@
-/* bgmergbl: bedgraph merge bed lines: the first bed refers to an over all bed file and the second bed will be treated on a line by line basis
- * essentially this programs summarises the first bed file according to the lines in the second */
+/* bedtack.c: a program to "tackle" BED (genomic features file) files.
+   Copyright (C) 2014  Ramon Fallon
+
+   This program is free software; you can redistribute it and/or
+   modify it under the terms of the GNU General Public License
+   as published by the Free Software Foundation; either version 2
+   of the License, or (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+*/
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
@@ -15,7 +30,7 @@
 
 #define NUMBUCKETS 20
 
-// the following is the way we cut out columns hat have nothing in them.
+// the following is the way we cut out columns that have nothing in them.
 #define MXCOL2VIEW 4
 
 #define CONDREALLOC(x, b, c, a, t); \
