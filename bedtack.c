@@ -19,6 +19,7 @@
 #include<stdlib.h>
 #include<string.h>
 #include<unistd.h> // required for optopt, opterr and optarg.
+#include <locale.h>
 
 #ifdef DBG
 #define GBUF 4
@@ -58,6 +59,7 @@ typedef struct /* opt_t, a struct for the options */
 	char *ustr; /* the name of a file with the list of elements to be unified */
 	char *pstr; /* depth file name */
 	char *gstr; /* genome file name */
+	char *rstr; /* repeatmasker ggf2 file */
 } opt_t;
 
 typedef struct /* i4_t */
@@ -84,6 +86,16 @@ typedef struct /* bgr_t2 */
 	char *f; /* f for feature .. 4th col */
 	size_t fsz; /* size of the feature field*/
 } bgr_t2; /* bedgraph row type 2i. column is the feature */
+
+typedef struct /* rmf_t: repeatmasker gff2 file format */
+{
+	char *n;
+	size_t nsz; /* size of the name r ID field */
+	long c[2]; /* coords: 1) start 2) cols 4 and 5 */
+	char *m; /* the motif string ... 9th column */
+	char sd; /* strand + or - */
+	size_t msz; /* size of motif string */
+} rmf_t;
 
 typedef struct /* words_t: file with only single words per line */
 {
@@ -133,7 +145,7 @@ int catchopts(opt_t *opts, int oargc, char **oargv)
 	int c;
 	opterr = 0;
 
-	while ((c = getopt (oargc, oargv, "dsni:f:u:p:g:")) != -1)
+	while ((c = getopt (oargc, oargv, "dsni:f:u:p:g:r:")) != -1)
 		switch (c) {
 			case 'd':
 				opts->dflg = 1;
@@ -158,6 +170,9 @@ int catchopts(opt_t *opts, int oargc, char **oargv)
 				break;
 			case 'g': /* genome file */
 				opts->gstr = optarg;
+				break;
+			case 'r': /* repeatmasker gff2 file */
+				opts->rstr = optarg;
 				break;
 			case '?':
 				fprintf (stderr, "Unknown option character `\\x%x'.\n", optopt);
@@ -401,9 +416,9 @@ bgr_t2 *processinpf2(char *fname, int *m, int *n) /*fourth column is string, oth
 					bgrow[wa->numl].n=malloc(couc*sizeof(char));
 					bgrow[wa->numl].nsz=couc;
 					strcpy(bgrow[wa->numl].n, bufword);
-				} else if((couw-oldcouw)<3) /* it's not the first word, and it's 1st and second col */
+				} else if((couw-oldcouw)<3) { /* it's not the first word, and it's 1st and second col */
 					bgrow[wa->numl].c[couw-oldcouw-1]=atol(bufword);
-				else if( (couw-oldcouw)==3) { // assume float
+				} else if( (couw-oldcouw)==3) { // assume float
 					bgrow[wa->numl].f=malloc(couc*sizeof(char));
 					bgrow[wa->numl].fsz=couc;
 					strcpy(bgrow[wa->numl].f, bufword);
@@ -418,7 +433,7 @@ bgr_t2 *processinpf2(char *fname, int *m, int *n) /*fourth column is string, oth
 				if(wa->numl == wa->lbuf-1) { /* enought space in our current array? */
 					wa->lbuf += WBUF;
 					wa->wpla=realloc(wa->wpla, wa->lbuf*sizeof(size_t));
-					bgrow=realloc(bgrow, wa->lbuf*sizeof(bgr_t));
+					bgrow=realloc(bgrow, wa->lbuf*sizeof(bgr_t2));
 					memset(wa->wpla+(wa->lbuf-WBUF), 0, WBUF*sizeof(size_t));
 				}
 				wa->wpla[wa->numl] = couw-oldcouw; /* number of words in current line */
@@ -466,6 +481,106 @@ bgr_t2 *processinpf2(char *fname, int *m, int *n) /*fourth column is string, oth
 	free_wseq(wa);
 
 	return bgrow;
+}
+
+rmf_t *processrmf(char *fname, int *m, int *n) /*fourth column is string, other columns to be ignored */
+{
+	/* In order to make no assumptions, the file is treated as lines containing the same amount of words each,
+	 * except for lines starting with #, which are ignored (i.e. comments). These words are checked to make sure they contain only floating number-type
+	 * characters [0123456789+-.] only, one string variable is continually written over and copied into a growing floating point array each time */
+
+	/* declarations */
+	FILE *fp=fopen(fname,"r");
+	int i;
+	size_t couc /*count chars per line */, couw=0 /* count words */, oldcouw = 0;
+	int c;
+	boole inword=0;
+	wseq_t *wa=create_wseq_t(GBUF);
+	size_t bwbuf=WBUF;
+	char *bufword=calloc(bwbuf, sizeof(char)); /* this is the string we'll keep overwriting. */
+
+	rmf_t *rmf=malloc(GBUF*sizeof(rmf_t));
+
+	while( (c=fgetc(fp)) != EOF) { /* grab a char */
+		if( (c== '\n') | (c == ' ') | (c == '\t') | (c=='#')) { /* word closing events */
+			if( inword==1) { /* first word closing event */
+				wa->wln[couw]=couc;
+				bufword[couc++]='\0';
+				bufword = realloc(bufword, couc*sizeof(char)); /* normalize */
+				/* for the struct, we want to know if it's the first word in a line, like so: */
+				if(couw==oldcouw) {
+					rmf[wa->numl].n=malloc(couc*sizeof(char));
+					rmf[wa->numl].nsz=couc;
+					strcpy(rmf[wa->numl].n, bufword);
+				} else if((couw-oldcouw)==3) { /* fourth col */
+					rmf[wa->numl].c[couw-oldcouw-3]=atol(bufword)-1L; // change to zero indexing
+				} else if((couw-oldcouw)==4) { /* it's not the first word, and it's 1st and second col */
+					rmf[wa->numl].c[couw-oldcouw-3]=atol(bufword); // no 0 indexing change required here.
+				} else if((couw-oldcouw)==6 )  { /* the strand */
+					rmf[wa->numl].sd=bufword[0];
+				} else if( (couw-oldcouw)==9) { // the motif string
+					rmf[wa->numl].m=malloc(couc*sizeof(char));
+					rmf[wa->numl].msz=couc;
+					strcpy(rmf[wa->numl].m, bufword);
+				}
+				couc=0;
+				couw++;
+			}
+			if(c=='#') { /* comment case */
+				while( (c=fgetc(fp)) != '\n') ;
+				continue;
+			} else if(c=='\n') { /* end of a line */
+				if(wa->numl == wa->lbuf-1) { /* enought space in our current array? */
+					wa->lbuf += WBUF;
+					wa->wpla=realloc(wa->wpla, wa->lbuf*sizeof(size_t));
+					rmf=realloc(rmf, wa->lbuf*sizeof(rmf_t));
+					memset(wa->wpla+(wa->lbuf-WBUF), 0, WBUF*sizeof(size_t));
+				}
+				wa->wpla[wa->numl] = couw-oldcouw; /* number of words in current line */
+				oldcouw=couw; /* restart words per line count */
+				wa->numl++; /* brand new line coming up */
+			}
+			inword=0;
+		} else if(inword==0) { /* deal with first character of new word, + and - also allowed */
+			if(couw == wa->wsbuf-1) {
+				wa->wsbuf += GBUF;
+				wa->wln=realloc(wa->wln, wa->wsbuf*sizeof(size_t));
+				rmf=realloc(rmf, wa->wsbuf*sizeof(rmf_t));
+				for(i=wa->wsbuf-GBUF;i<wa->wsbuf;++i)
+					wa->wln[i]=0;
+			}
+			couc=0;
+			bwbuf=WBUF;
+			bufword=realloc(bufword, bwbuf*sizeof(char)); /* don't bother with memset, it's not necessary */
+			bufword[couc++]=c; /* no need to check here, it's the first character */
+			inword=1;
+		} else {
+			if(couc == bwbuf-1) { /* the -1 so that we can always add and extra (say 0) when we want */
+				bwbuf += WBUF;
+				bufword = realloc(bufword, bwbuf*sizeof(char));
+			}
+			bufword[couc++]=c;
+		}
+
+	} /* end of big for statement */
+	fclose(fp);
+	free(bufword);
+
+	/* normalization stage */
+	wa->quan=couw;
+	wa->wln = realloc(wa->wln, wa->quan*sizeof(size_t)); /* normalize */
+	rmf = realloc(rmf, wa->quan*sizeof(rmf_t)); /* normalize */
+	wa->wpla= realloc(wa->wpla, wa->numl*sizeof(size_t));
+
+	*m= wa->numl;
+	int k=wa->wpla[0];
+	for(i=1;i<wa->numl;++i)
+		if(k != wa->wpla[i])
+			printf("Warning: Numcols is not uniform at %i words per line on all lines. This file has one with %zu.\n", k, wa->wpla[i]); 
+	*n= k; 
+	free_wseq(wa);
+
+	return rmf;
 }
 
 dpf_t *processdpf(char *fname, int *m, int *n) /*fourth column is string, other columns to be ignored */
@@ -666,6 +781,16 @@ void prtbd2ia(bgr_t2 *bed2, int n, ia_t *ia)
 			}
 			printf("\n"); 
 	}
+	return;
+}
+
+void prtrmf(char *fname, rmf_t *rmf, int m6)
+{
+	int i;
+	for(i=0;i<m6;++i) // note how we cut out the spurious parts of the motif string to leave it pure and raw (slightly weird why two-char deletion is necessary.
+		printf("%s\t%li\t%li\t%c\t%.*s\n", rmf[i].n, rmf[i].c[0], rmf[i].c[1], rmf[i].sd, (int)(rmf[i].msz-9), rmf[i].m+7);
+
+	printf("You just seen the %i entries of repeatmasker gff2 file called \"%s\".\n", m6, fname); 
 	return;
 }
 
@@ -934,19 +1059,23 @@ void m2beds(bgr_t *bgrow, bgr_t2 *bed2, int m2, int m) /* match up 2 beds */
 	return;
 }
 
-void mgf2bed(gf_t *gf, bgr_t2 *bed2, int m2, int m5) /* match gf to feature bed file */
+void mgf2bed(char *gfname, char *ffile, gf_t *gf, bgr_t2 *bed2, int m2, int m5) /* match gf to feature bed file */
 {
+	setlocale(LC_NUMERIC, "");
 	int i, j;
 	int reghits; /* hits for region: number of lines in bed1 which coincide with a region in bed2 */
 	int *acov=calloc(m5, sizeof(int)); /* coverage of this chromosome in the bed file */
 	int rangecov=0;
 	int istarthere=0, catchingi=0;
+	int strmatch;
 	boole caught;
+	printf("Coverage of \"%s\" (genome size file) by \"%s\" (feature bed file):\n", gfname, ffile); 
 	for(j=0;j<m5;++j) {
 		caught=0;
 		reghits=0;
 		for(i=istarthere;i<m2;++i) {
-			if( !(strcmp(gf[j].n, bed2[i].n)) & (gf[j].z > bed2[i].c[0]) & (gf[j].z > bed2[i].c[1]) ) {
+			strmatch=strcmp(gf[j].n, bed2[i].n);
+			if( (!strmatch) & (gf[j].z > bed2[i].c[0]) & (gf[j].z >= bed2[i].c[1]) ) {
 				reghits++;
 				rangecov=bed2[i].c[1] - bed2[i].c[0]; // range covered by this hit
 				acov[j] +=rangecov;
@@ -955,12 +1084,57 @@ void mgf2bed(gf_t *gf, bgr_t2 *bed2, int m2, int m5) /* match gf to feature bed 
 			} else if (caught) { // will catch first untruth after a series of truths.
 				caught=2;
 				break; // bed1 is ordered so we can forget about trying to match anymore.
+			} else if( (!strmatch) & (gf[j].z <= bed2[i].c[0]) & (gf[j].z < bed2[i].c[1]) ) {
+				printf("There's a problem with the genome size file ... are you sure it's the right one? Bailing out.\n"); 
+				exit(EXIT_FAILURE);
 			}
 		}
 		if(caught==2)
 			istarthere=catchingi+1;
-		printf("gfidx %i / name %s / cov %2.4f got %i hits from bed2\n", j, gf[j].n, (float)acov[j]/gf[j].z, reghits);
+		// printf("%s / cov %2.4f got %i hits from bed2\n", gf[j].n, (float)acov[j]/gf[j].z, reghits);
+		printf("%s\t%4.2f%%\tof %'li bp\n", gf[j].n, 100.*(float)acov[j]/gf[j].z, gf[j].z);
 		if(istarthere >= m2)
+			break;
+	}
+	free(acov);
+	return;
+}
+
+void mgf2rmf(char *gfname, char *rmffile, gf_t *gf, rmf_t *rmf, int m6, int m5) /* match gf to feature bed file */
+{
+	setlocale(LC_NUMERIC, "");
+	int i, j;
+	int reghits; /* hits for region: number of lines in bed1 which coincide with a region in rmf */
+	int *acov=calloc(m5, sizeof(int)); /* coverage of this chromosome in the bed file */
+	int rangecov=0;
+	int istarthere=0, catchingi=0;
+	int strmatch;
+	boole caught;
+	printf("Coverage of \"%s\" (genome size file) by \"%s\" (feature bed file):\n", gfname, rmffile); 
+	for(j=0;j<m5;++j) {
+		caught=0;
+		reghits=0;
+		for(i=istarthere;i<m6;++i) {
+			strmatch=strcmp(gf[j].n, rmf[i].n);
+			if( (!strmatch) & (gf[j].z > rmf[i].c[0]) & (gf[j].z >= rmf[i].c[1]) ) {
+				reghits++;
+				rangecov=rmf[i].c[1] - rmf[i].c[0]; // range covered by this hit
+				acov[j] +=rangecov;
+				catchingi=i;
+				caught=1;
+			} else if (caught) { // will catch first untruth after a series of truths.
+				caught=2;
+				break; // ordered so we can forget about trying to match anymore.
+			} else if( (!strmatch) & (gf[j].z <= rmf[i].c[0]) & (gf[j].z < rmf[i].c[1]) ) {
+				printf("There's a problem with the genome size file ... are you sure it's the right one? Bailing out.\n"); 
+				exit(EXIT_FAILURE);
+			}
+		}
+		if(caught==2)
+			istarthere=catchingi+1;
+		// printf("%s / cov %2.4f got %i hits from rmf\n", gf[j].n, (float)acov[j]/gf[j].z, reghits);
+		printf("%s\t%4.2f%%\tof %'li bp\n", gf[j].n, 100.*(float)acov[j]/gf[j].z, gf[j].z);
+		if(istarthere >= m6)
 			break;
 	}
 	free(acov);
@@ -1000,12 +1174,9 @@ void md2bedp(dpf_t *dpf, bgr_t2 *bed2, int m2, int m) /* match up a samtools dep
 		}
 		if(caught==2)
 			istarthere=catchingi+1;
-#ifdef DBG
-		printf("Bed2idx %i / name %s / size %li got %i hits from dpf , being %i loci and accumulated depth val of %lu\n", j, bed2[j].f, bed2[j].c[1]-bed2[j].c[0], reghits, cloci, assoctval);
-#else
+		// printf("Bed2idx %i / name %s / size %li got %i hits from dpf , being %i loci and accumulated depth val of %lu\n", j, bed2[j].f, bed2[j].c[1]-bed2[j].c[0], reghits, cloci, assoctval);
 		printf("%s\t%li\t%li\t%s\t%i\t%i\t%li\t%4.4f\n", bed2[j].n, bed2[j].c[0], bed2[j].c[1], bed2[j].f, min, max, assoctval, (float)assoctval/cloci);
 
-#endif
 		if(istarthere >= m)
 			break;
 	}
@@ -1062,7 +1233,7 @@ i4_t *difca(bgr_t *bgrow, int m, int *dcasz, float minsig) /* An temmpt to merge
 	printf("Num of different chromcontigs=%i. How many of each? Let's see:\n", dci+1); 
 	printf("dcbf=%i. 4-tupe is sc/mc/b1i/lgbi\n", dcbf); 
 	for(i=0;i<=dci;++i) 
-		printf("%i/%i/%i/%i ",dca[i].sc, dca[i].mc, dca[i].b1i, dca[i].lgbi); 
+		printf("%i/%4.2f/%i/%i ",dca[i].sc, dca[i].mc, dca[i].b1i, dca[i].lgbi); 
 	printf("\n"); 
 #endif
 	*dcasz=dci+1;
@@ -1086,7 +1257,7 @@ int main(int argc, char *argv[])
 		prtusage();
 		exit(EXIT_FAILURE);
 	}
-	int i, m, n, m2, n2, m3, n3, m4, n4, m5, n5;
+	int i, m, n, m2, n2, m3, n3, m4, n4, m5, n5, m6, n6;
 	opt_t opts={0};
 	catchopts(&opts, argc, argv);
 
@@ -1096,6 +1267,7 @@ int main(int argc, char *argv[])
 	words_t *bedword=NULL; /* usually feature names of interest */
 	dpf_t *dpf=NULL; /* usually feature names of interest */
 	gf_t *gf=NULL; /* usually genome size file */
+	rmf_t *rmf=NULL; /* usually genome size file */
 	if(opts.istr)
 		bgrow=processinpf(opts.istr, &m, &n);
 	if(opts.fstr)
@@ -1106,6 +1278,8 @@ int main(int argc, char *argv[])
 		dpf=processdpf(opts.pstr, &m4, &n4);
 	if(opts.gstr)
 		gf=processgf(opts.gstr, &m5, &n5);
+	if(opts.rstr)
+		rmf=processrmf(opts.rstr, &m6, &n6);
 
 	/* conditional execution of certain functions depending on the options */
 	if((opts.dflg) && (opts.istr)) {
@@ -1131,8 +1305,14 @@ int main(int argc, char *argv[])
 	if((opts.pstr) && (opts.fstr) )
 		md2bedp(dpf, bed2, m2, m4);
 
+	if((opts.dflg) && (opts.rstr) )
+		prtrmf(opts.rstr, rmf, m6);
+
+	if((opts.gstr) && (opts.rstr) )
+		mgf2rmf(opts.gstr, opts.rstr, gf, rmf, m6, m5);
+
 	if((opts.gstr) && (opts.fstr) )
-		mgf2bed(gf, bed2, m2, m5);
+		mgf2bed(opts.gstr, opts.fstr, gf, bed2, m2, m5);
 	// if((opts.ustr) && (opts.fstr) && opts.sflg)
 	// 	prtbed2s(bed2, m2, MXCOL2VIEW, bedword, m3, n3, "bed2 features that are in interesting-feature-file");
 
@@ -1159,6 +1339,13 @@ final:
 			free(bed2[i].f);
 		}
 		free(bed2);
+	}
+	if(opts.rstr) {
+		for(i=0;i<m6;++i) {
+			free(rmf[i].n);
+			free(rmf[i].m);
+		}
+		free(rmf);
 	}
 	if(opts.gstr) {
 		for(i=0;i<m5;++i)
